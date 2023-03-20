@@ -4,7 +4,11 @@ const {
     getUsers,
     updateUser,
     deleteUser,
-    getUserByUserEmail
+    getUserByUserEmail,
+    getProfile,
+    getFollowing,
+    followUser, 
+    unfollowUser
 } = require("./user.service");
 
 const {genSaltSync, hashSync, compareSync} = require("bcrypt");
@@ -48,37 +52,7 @@ module.exports = {
             });
         }
     },
-    getUserByUserId : (req, res) => {
-        const id = req.params.id;
-        getUserByUserId(id, (err, results) => {
-            if(err){
-                console.log(err);
-                return;
-            }
-            if(!results){
-                return res.json({
-                    success : 0,
-                    message :"Record not found"
-                });
-            }
-            return res.json({
-                success : 1,
-                data : results
-            });
-        });
-    },
-    getUsers : (req, res) => {
-        getUsers((err, results) => {
-            if (err){
-                console.log(err);
-                return;
-            }
-            return res.json({
-                success : 1,
-                data : results
-            });
-        });
-    },
+    
     getCurrentUser : async (req, res) =>{
         try{
             const user = await getUserByUserId(req._user.id);
@@ -136,26 +110,7 @@ module.exports = {
             });
         }
     },
-    deleteUser: async (req, res) => {
-        const data = req.body;
-        deleteUser(data, (err, results) =>{
-            if(err){
-                console.log(err);
-                return;
-            }
-            if(!results){
-                return res.json({
-                    success : 0,
-                    message : "Record Not Found"
-                });
-            }
-            return res.json({
-                success : 1,
-                message : "user deleted successfully"
-            });
 
-        });
-    },
     login: async (req, res) => {
         try {
             const body = req.body;
@@ -188,6 +143,89 @@ module.exports = {
         } catch(err) {
             console.log(err);
         }
-    }
+    },
 
+    getProfile : async (req, res) =>{
+        try {
+            const username = req.params.username;
+            const profile = await getProfile(username);
+            if(!profile) {
+                return res.json({
+                    success : 0,
+                    data : "Profile not found"
+                });
+            }
+            const following = req._user ? await getFollowing({ follower_id: req._user.id, user_id: profile.id }) : false
+            return res.json({
+                profile: {
+                    username: profile.username,
+                    bio: profile.bio,
+                    image: profile.image,
+                    following: following ? true : false
+                }
+            })
+        } catch (err) {
+            console.log(err);
+            return res.json({
+                success: 0,
+                data: "Something went wrong"
+            });
+        }
+    },
+
+    followUser : async (req, res)=>{
+        try {
+            const username = req.params.username;
+            const profile = await getProfile(username);
+            if(!profile) {
+                return res.json({
+                    success : 0,
+                    data : "Profile not found"
+                });
+            }
+            const savedFollower = await followUser({follower_id: req._user.id, user_id: profile.id})
+            return res.json({
+                profile:{
+                    username: profile.username,
+                    bio: profile.bio,
+                    image: profile.image,
+                    following: true 
+                }
+            })
+        } catch (err)  {
+            console.log(err);
+            return res.json({
+                success:0,
+                data: "Operation failed"
+            });
+        }      
+    },
+
+    unfollowUser : async (req, res)=>{
+        try{
+            const username = req.params.username;
+            const profile = await getProfile(username);
+            if(!profile) {
+                return res.json({
+                    success : 0,
+                    data : "Profile not found"
+                });
+            }
+            const savedFollower = await unfollowUser({follower_id: req._user.id, user_id: profile.id})
+            return res.json({
+                profile:{
+                    username: profile.username,
+                    bio: profile.bio,
+                    image: profile.image,
+                    following: false
+                }
+            })
+        } catch (err) {
+            console.log(err);
+            return res.json({
+                success: 0,
+                data : "Operation failed"
+            });
+        }
+    }
 };

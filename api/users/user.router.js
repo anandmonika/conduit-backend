@@ -5,10 +5,13 @@ const{
     getCurrentUser,
     updateUser,
     deleteUser,
-    login
+    login,
+    getProfile,
+    followUser,
+    unfollowUser
     } = require("./user.controller");
 const router = require("express").Router();
-const { checkToken } = require("../../auth/token_validation");
+const { checkToken, makeTokenOptional } = require("../../auth/token_validation");
 
 // Authentication
 router.post("/users/login",login);
@@ -22,10 +25,13 @@ router.get("/user",checkToken, getCurrentUser);
 //Update user
 router.put("/user",checkToken, updateUser);
 
+//profile
+router.get("/profiles/:username", makeTokenOptional, checkToken, getProfile);
 
-// ------------------------------------------
-router.get("/users", checkToken, getUsers);
-router.get("/users/:id", checkToken, getUserByUserId);
-router.delete("/users", checkToken, deleteUser);
+//follow user
+router.post("/profiles/:username/follow", checkToken, followUser);
+
+//unfollow user
+router.delete("/profiles/:username/follow", checkToken, unfollowUser);
 
 module.exports = router;

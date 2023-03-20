@@ -1,8 +1,10 @@
 const {verify} = require("jsonwebtoken");
 
-
-
 module.exports = {
+    makeTokenOptional: (req, res, next) => {
+        req._isTokenOptional = true;
+        next();
+    },
     checkToken: (req, res, next) => {
         let token = req.get("authorization");
         if(token){
@@ -20,10 +22,13 @@ module.exports = {
                 }
             });
         }else{
-            res.json({
-                success:0,
-                message:"Access denied! unauthorized user"
-            });
+            if(!req._isTokenOptional)
+                return res.json({
+                    success:0,
+                    message:"Access denied! unauthorized user"
+                });
+            
+            next();
         }
     }
 }
