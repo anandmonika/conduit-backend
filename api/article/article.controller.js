@@ -1,10 +1,29 @@
-const { getTagByName, createTag, attachTagToArticle } = require("../Tag/tag.service");
-const { getProfile } = require("../users/user.service");
+const { 
+     getTagByName,
+     createTag,
+     attachTagToArticle,
+     getTagByArticle
+     } = require("../Tag/tag.service");
 const {
-    createArticle
-} = require("./article.service");
+     getProfile, getUserByUserId 
+     } = require("../users/user.service");
+const {
+    createArticle,
+    getArticleBySlug,
+    getFavoritesByArticleId,
+    getAllArticles,
+    getArticlesCount,
+    getArticlesByAuthor,
+    getArticlesByTag,
+    getArticlesFavoritedByusername,
+    deleteArticle,
+    favoriteArticle,
+    unfavoriteArticle, 
+    updateArticle,
+    getFeedArticles
+    } = require("./article.service");
 
-module.exports = {
+const controllers = {
         createArticle : async (req, res) =>{
             try {
                 const body = req.body;
@@ -60,5 +79,228 @@ module.exports = {
                 message: "Something went wrong"
             });
         }
+    },
+
+    getArticleBySlug: async(req, res) => {
+        try{
+            const slug = req.params.slug;
+            const article =await getArticleBySlug(slug);
+            if(!article) {
+                return res.json({
+                    success : false,
+                    data : "Article not found"
+                });
+            }
+            const [tag, favorites, author] = await Promise.all([getTagByArticle({article_id: article.id}), getFavoritesByArticleId(article.id), getUserByUserId(article.author_id)])
+            const tagList = [];
+            for(let i=0;i<tag.length;i++){
+                tagList[i]=tag[i].name;
+            }
+
+            return res.json({
+                article: {
+                    id: article.id,
+                    slug: article.slug,
+                    title: article.title,
+                    description: article.description,
+                    body: article.body,
+                    tagList: tagList,
+                    createdAt: article.created_at, 
+                    updatedAt: article.updated_at, 
+                    favorited: false,
+                    favoritesCount: favorites.length,
+                    author:{
+                        username: author.username ,
+                        bio: author.bio,
+                        image: author.image,
+                        following: false
+                    }
+                }
+            }) 
+        } catch (err) {
+            console.log(err);
+        return res.json({
+            success: 0,
+            message: "Something went wrong"
+        });
+    }
+
+},
+getFeed: async(req,res)=>{
+    req.query.feed = true;
+    await controllers.getAllArticles(req, res);
+},
+getAllArticles: async(req, res) =>{
+    try{
+        const  authorUsername = req.query.author;
+        const tagName = req.query.tag;
+        const favoritedByUsername = req.query.favorited;
+        const isFeed = req.query.feed;
+        const limit = Number(req.query.limit) || 20;
+        const offset = Number(req.query.offset) || 0;
+        
+        if(authorUsername){
+            getArticlePromise = getArticlesByAuthor({ username: authorUsername , limit, offset});
+        }else if(tagName){
+            getArticlePromise = getArticlesByTag({name: tagName, limit, offset});
+        }else if(favoritedByUsername){
+            getArticlePromise = getArticlesFavoritedByusername({username: favoritedByUsername, limit, offset})
+        }else if(isFeed){
+            getArticlePromise = getFeedArticles({follower_id: req._user.id });
+        }else {
+            getArticlePromise = getAllArticles({limit, offset});
+        }
+        const [articles,articlesCount] = await Promise.all ([getArticlePromise,getArticlesCount()]);
+        const savedArticles = []
+        for(let i=0;i<articles.length;i++){
+            const article = articles[i];
+
+            const [tag, favorites,author] = await Promise.all([getTagByArticle({article_id: article.id}), getFavoritesByArticleId(article.id), getUserByUserId(article.author_id)])
+            const tagList = [];
+            for(let i=0;i<tag.length;i++){
+                tagList[i] = tag[i].name;
+            }
+            
+            savedArticles[i] = {
+                id: article.id,
+                slug: article.slug,
+                title: article.title,
+                description: article.description,
+                body: article.body,
+                tagList: tagList,
+                createdAt: article.created_at, 
+                updatedAt: article.updated_at, 
+                favorited: false,
+                favoritesCount: favorites.length,
+                author:{
+                    username: author.username ,
+                    bio: author.bio,
+                    image: author.image,
+                    following: false
+                } 
+            } 
+        }
+        return res.json({articles: savedArticles, articlesCount:articlesCount.articles_count});
+    }catch(err){
+        console.log(err);
+        return res.json({
+            success: 0,
+            message: "Something went wrong"
+        });
+    }
+},
+
+    deleteArticle : async (req, res)=>{
+        try{
+            const slug = req.params.slug;
+            const article = await getArticleBySlug(slug);
+            if(!article){
+                return res.json({
+                    success: false,
+                    message: "Article not found"
+                });
+            }
+            if(req._user.id!=article.author_id){ 
+                return res.json({
+                    success: false,
+                    message: "User not authorized to delete the article "
+                });
+            }
+            await deleteArticle(article.slug);
+            return res.json({
+                success : true,
+                message:"Article deleted",
+                article
+            })
+        }catch (err) {
+            console.log(err);
+            return res.json({
+                success: false,
+                message : "operation failed"
+            });
+        }
+    },
+
+    favoriteArticle : async (req, res)=>{
+        try{
+            const slug = req.params.slug;
+            const article = await getArticleBySlug(slug);
+            if(!article){
+                return res.json({
+                    success: false,
+                    message: "Article not found"
+                });
+            }
+            await favoriteArticle({article_id: article.id, user_id: req._user.id});
+            return res.json({
+                success: true,
+                message: "Article favorited",
+                article
+            })
+        }catch (err) {
+            console.log(err);
+            return res.json({
+                success: false,
+                message : "operation failed"
+            });
+        }
+    },
+    unfavoriteArticle: async(req,res)=>{
+        try{
+            const slug = req.params.slug;
+            const article = await getArticleBySlug(slug);
+            if(!article){
+                return res.json({
+                    success: false,
+                    message: "Article not found"
+                });
+            }
+            await unfavoriteArticle(slug);
+            return res.json({
+                success: true,
+                message: "Article unfavorited",
+                article
+            });
+        }catch(err) {
+            console.log(err);
+            return res.json({
+                success: false,
+                message: "Operation failed"
+            });
+        }
+    },
+
+    updateArticle: async (req,res)=>{
+        try{
+            const slug = req.params.slug;
+            const savedArticle = await getArticleBySlug(slug);
+            if(!savedArticle){
+                return res.json({
+                    success: false,
+                    message: "Article not found"
+                })
+            }
+            const article = req.body.article;
+            if(article.title){
+                article.slug = article.title.toLowerCase().replace(/\s+/g, '-');
+            }
+            await updateArticle({ id: savedArticle.id, ...article})
+            return res.json({
+                success: true,
+                message: "Article updated",
+                article: {
+                    ...savedArticle,
+                    ...article
+                }
+            })
+        } catch(err) {
+            console.log(err);
+            return res.json({
+                success: false,
+                message: "Operation failed"
+            });
+        }
     }
 }
+
+module.exports = controllers;

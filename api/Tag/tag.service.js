@@ -48,5 +48,37 @@ module.exports ={
                 }
             );
         })
+    },
+
+        getTagByArticle: (data)=>{
+            return new Promise((resolve, reject) => {
+            pool.query(
+                `select name from tags where id in(select tag_id from  article_tag where article_id = ?)`,
+                [
+                    data.article_id
+                ],
+                (error, results) =>{
+                    if(error){
+                        return reject(error);
+                    }
+                    return resolve(results);
+                }
+            );
+        })
+    },
+
+    getAllTags: ()=>{
+        return new Promise((resolve, reject) => {
+            pool.query(
+                `select name from tags`,
+                [],
+                (error, results) => {
+                    if(error){
+                        return reject(error);
+                    }
+                    return resolve(results);
+                }
+            );
+        })
     }
 }
